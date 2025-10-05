@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<title>herrer83 · mini-app</title>
+<style>
+  body{font-family:system-ui;margin:16px}
+  .muted{color:#666}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .tab{padding:10px 14px;border:1px solid #ccc;border-radius:999px;cursor:pointer}
+  .tab.active{border-color:#111;font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:12px}
+  .card{border:1px solid #eee;border-radius:12px;padding:12px}
+  .card h3{margin:0 0 4px}
+  .sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ddd;padding:16px;display:none}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .btn{padding:10px 12px;border:1px solid #bbb;border-radius:8px;background:#fff;cursor:pointer}
+  @media (prefers-color-scheme:dark){
+    body{background:#0e0e0e;color:#eaeaea}
+    .tab,.card,.btn{border-color:#333;background:#121212}
+    .muted{color:#aaa}
+    .sheet{background:#0f0f0f;border-color:#222}
+  }
+</style>
+</head>
+<body>
+<h2>herrer83</h2>
+<p class="muted"> Choisis un produit et une quantité. La sélection est transmise dans le chat.</p>
+
+<div class="tabs" id="tabs"></div>
+<div class="grid" id="grid"></div>
+
+<div class="sheet" id="sheet">
+  <h3 id="pname"></h3>
+  <div id="pdesc" class="muted"></div>
+  <div id="opts" class="row"></div>
+  <div class="row">
+    <button class="btn" id="close">Fermer</button>
+  </div>
+</div>
+
+<script>
+const BOT_USERNAME = "Herrer83Bot"; // ton bot
+
+// Données produits
+const CATS = [
+  {
+    key:'frozen', name:'Frozen 🇺🇸',
+    items:[
+      {
+        id:'frozen-lemon-acai',
+        title:'Lemon acai 🍋',
+        desc:'Frozen · graine de Cali',
+        options:[ {label:'5g', price:50}, {label:'10g', price:100} ]
+      }
+    ]
+  },
+  {
+    key:'static', name:'Static 🇲🇦',
+    items:[
+      {
+        id:'static-candy-kush',
+        title:'Candy kush 🍬🍭',
+        desc:'Static',
+        options:[ {label:'7g', price:50}, {label:'10g', price:70} ]
+      }
+    ]
+  },
+  {
+    key:'mouseux', name:'Mouseux 🧈',
+    items:[
+      {
+        id:'mouseux-damso-gold',
+        title:'Damso Gold 🎶🎺',
+        desc:'Mouseux',
+        options:[ {label:'5g', price:30}, {label:'10g', price:50}, {label:'Plak', price:300} ]
+      }
+    ]
+  },
+  {
+    key:'nl', name:'Weed hollandaise 🇳🇱',
+    items:[
+      {
+        id:'nl-amnesia-haze',
+        title:'Amnesia haze 🌷',
+        desc:'Weed hollandaise',
+        options:[ {label:'5g', price:50}, {label:'10g', price:100} ]
+      }
+    ]
+  },
+  {
+    key:'cali', name:'Weed californienne 🇺🇸',
+    items:[
+      {
+        id:'cali-cake-pops',
+        title:'Cake pops 🥞🍩',
+        desc:'Weed californienne',
+        options:[ {label:'3g', price:50}, {label:'7g', price:100} ]
+      }
+    ]
+  },
+  {
+    key:'vegetal', name:'Végétal ❄️',
+    items:[
+      {
+        id:'vegetal-suriname',
+        title:'Suriname 🇸🇷',
+        desc:'Végétal',
+        options:[
+          {label:'0,5g', price:30},
+          {label:'1g', price:60},
+          {label:'10g / 100g', price:null, note:'message privé'} // bulk = MP
+        ]
+      }
+    ]
+  }
+];
+
+// UI
+const tg = window.Telegram?.WebApp; try{tg?.expand()}catch(e){}
+let current = CATS[0].key;
+const tabs = document.getElementById('tabs');
+const grid = document.getElementById('grid');
+const sheet = document.getElementById('sheet');
+const pname = document.getElementById('pname');
+const pdesc = document.getElementById('pdesc');
+const opts = document.getElementById('opts');
+document.getElementById('close').onclick = ()=> sheet.style.display='none';
+
+function drawTabs(){
+  tabs.innerHTML = '';
+  CATS.forEach(c=>{
+    const b = document.createElement('button');
+    b.className = 'tab' + (c.key===current?' active':'');
+    b.textContent = c.name;
+    b.onclick = ()=>{ current=c.key; drawTabs(); drawGrid(); };
+    tabs.appendChild(b);
+  });
+}
+function drawGrid(){
+  grid.innerHTML='';
+  const cat = CATS.find(x=>x.key===current);
+  (cat?.items||[]).forEach(it=>{
+    const d = document.createElement('div');
+    d.className='card';
+    d.innerHTML = `<h3>${it.title}</h3><div class="muted">${it.desc||''}</div>
+                   <div class="row" style="margin-top:8px"><button class="btn">Choisir</button></div>`;
+    d.querySelector('button').onclick = ()=>openSheet(it, cat.name);
+    grid.appendChild(d);
+  });
+}
+function openSheet(item, catName){
+  pname.textContent = `${item.title}`;
+  pdesc.textContent = `${catName}${item.desc? ' · '+item.desc:''}`;
+  opts.innerHTML = '';
+  item.options.forEach(o=>{
+    const b = document.createElement('button');
+    b.className='btn';
+    b.textContent = o.price==null ? `${o.label} · MP` : `${o.label} · ${o.price}€`;
+    b.onclick = ()=> sendSelection(item, catName, o);
+    opts.appendChild(b);
+  });
+  sheet.style.display='block';
+}
+function sendSelection(item, catName, opt){
+  const payload = {
+    product: {id:item.id, title:item.title, category:catName},
+    selection: {label:opt.label, price:opt.price, note:opt.note||null},
+    user: tg?.initDataUnsafe?.user || null,
+    ts: Date.now()
+  };
+  try{ tg.sendData(JSON.stringify(payload)); }catch(e){}
+  try{ tg.close(); }catch(e){}
+  const url = `https://t.me/${BOT_USERNAME}`;
+  try{ tg.openLink(url); }catch(e){ window.open(url, '_blank'); }
+}
+
+drawTabs(); drawGrid();
+</script>
+</body>
+</html>
