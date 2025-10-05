@@ -1,17 +1,25 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
+import TelegramBot from "node-telegram-bot-api";
 
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const PORT = process.env.PORT || 10000;
 
-// Sert ton fichier index.html
-app.use(express.static(__dirname));
+// ton token de bot
+const TOKEN = "8371944735:AAGBDsJu0uUlLeVdRiwlXVWJFko3j1Ao2Hg";
+const WEB_APP_URL = "https://herrer83-webapp-2.onrender.com";
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+const bot = new TelegramBot(TOKEN, { polling: true });
+
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, "Bienvenue sur Herrer83 🌿", {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "Ouvrir le menu", web_app: { url: WEB_APP_URL } }]
+      ]
+    }
+  });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.get("/", (req, res) => res.send("Bot en ligne ✅"));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
